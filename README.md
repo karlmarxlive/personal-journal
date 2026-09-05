@@ -51,7 +51,7 @@ $env:GRADLE_USER_HOME = "$PWD\.gradle-user-home"
 
 Локальные тесты охватывают хранилище, ограничения черновиков, эволюцию и архив шаблона, восстановление Room, undo/redo, распознавание, reflow, обработку фото, Markdown, ZIP и расчёт пагинации. Compose-тесты на хосте проверяют основные экраны, автосохранение и подтверждение запечатывания; снимки находятся в `app/build/host-previews/`.
 
-Реальная генерация PDF и нативный Ink дополнительно проверяются в `InkDeviceTest` на Android. Robolectric на этом Windows-хосте не создаёт нативный handle PdfDocument: локальный ZIP-тест проверяет упаковку PDF-файла, а не подменяет проверку настоящего рендеринга. Проверки телефона **отложены по просьбе пользователя**; их порядок — в [DEVICE-CHECKLIST.md](DEVICE-CHECKLIST.md). Плавность, zoom/pan, Photo Picker и работа Ink после R8 требуют этой проверки.
+Реальная генерация PDF и нативный Ink дополнительно проверяются в `InkDeviceTest` на Android. Robolectric на этом Windows-хосте не создаёт нативный handle PdfDocument: локальный ZIP-тест проверяет упаковку PDF-файла, а не подменяет проверку настоящего рендеринга. **2026-09-05–06 проверки выполнены на A059 с Android 16:** инструментальные тесты, системный Photo Picker, восстановление release-черновика после остановки процесса и экспорт release с R8. Подробные результаты и пределы проверки — в [DEVICE-CHECKLIST.md](DEVICE-CHECKLIST.md).
 
 Отчёты: `app/build/test-results/testDebugUnitTest/TEST-*.xml`, `app/build/reports/lint-results-debug.xml`, `app/build/outputs/androidTest-results/connected/`. Скрипт [scripts/verify-artifact.ps1](scripts/verify-artifact.ps1) проверяет XML, копирует release APK в `dist`, проверяет подпись, package, версии, разрешения и SHA-256. Git-репозиторий локальный; remote не добавляется.
 

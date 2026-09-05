@@ -12,6 +12,14 @@ foreach ($file in $xmlFiles) {
 $errors = @($lint.issues.issue | Where-Object { $_.severity -in 'Error','Fatal' })
 $warnings = @($lint.issues.issue | Where-Object { $_.severity -eq 'Warning' })
 if ($errors.Count) { throw "Lint: $($errors.Count) ошибок" }
+$deviceTotal = 0
+$deviceReports = Get-ChildItem -Path (Join-Path $projectRoot 'app\build\outputs\androidTest-results\connected') -Recurse -Filter 'TEST-*.xml' -ErrorAction SilentlyContinue
+foreach ($file in $deviceReports) {
+    [xml]$deviceXml = Get-Content -LiteralPath $file.FullName -Raw
+    $deviceSuite = $deviceXml.DocumentElement
+    $deviceTotal += [int]$deviceSuite.tests
+    if ([int]$deviceSuite.failures -ne 0 -or [int]$deviceSuite.errors -ne 0 -or [int]$deviceSuite.skipped -ne 0) { throw "Неуспешный тест на устройстве: $($file.Name)" }
+}
 $destination = Join-Path $projectRoot 'dist\MyJournal-1.0.0.apk'
 Copy-Item -LiteralPath (Join-Path $projectRoot 'app\build\outputs\apk\release\app-release.apk') -Destination $destination -Force
 $verifyDir = Join-Path $projectRoot 'dist\verification'
@@ -41,7 +49,7 @@ $report = [ordered]@{
     lintWarnings = $warnings.Count
     signatureVerified = $true
     forbiddenPermissions = $false
-    deviceTests = 'Deferred by user; not run'
+    deviceTests = $(if ($deviceTotal -gt 0) { "Passed: $deviceTotal" } else { 'Not run' })
     date = (Get-Date).ToString('o')
 }
 $report | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $verifyDir 'report.json') -Encoding utf8
