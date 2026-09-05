@@ -1,0 +1,14 @@
+.gradle/
+.kotlin/
+.gradle-user-home/
+**/build/
+local.properties
+local-signing/
+dist/*.apk
+dist/*.zip
+dist/verification/
+.idea/
+*.iml
+*.hprof
+*.log
+captures/
