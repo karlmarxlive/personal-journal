@@ -36,8 +36,20 @@ fun dateLabel(date: String)=LocalDate.parse(date).format(DateTimeFormatter.ofPat
 @Composable fun JournalUi(model: JournalModel) {
     val prefs by model.prefs.collectAsStateWithLifecycle()
     val dark=when(prefs.theme) { "DARK" -> true; "LIGHT" -> false; else -> isSystemInDarkTheme() }
-    val scheme=if(dark) darkColorScheme(primary=Color(0xFFBFCBA4),onPrimary=Color(0xFF27301B),secondaryContainer=Color(0xFF3C4531),onSecondaryContainer=Color(0xFFE0E8CE),background=Color(0xFF191B18),surface=Color(0xFF22251F),onSurface=Color(0xFFF2EFE8))
-        else lightColorScheme(primary=Color(0xFF626E49),onPrimary=Color.White,background=Color(0xFFFAF7EF),surface=Color(0xFFFAF7EF),onSurface=Color(0xFF202124),secondaryContainer=Color(0xFFE9EBDD),onSecondaryContainer=Color(0xFF29311E))
+    val scheme=if(dark) darkColorScheme(
+        primary=Color(0xFFA8C7FA),onPrimary=Color(0xFF00315F),primaryContainer=Color(0xFF164776),onPrimaryContainer=Color(0xFFD5E3FF),
+        secondary=Color(0xFFB8C8E0),onSecondary=Color(0xFF233247),secondaryContainer=Color(0xFF304663),onSecondaryContainer=Color(0xFFD8E7FF),
+        background=Color(0xFF171A20),onBackground=Color(0xFFE4E7EF),surface=Color(0xFF20242C),onSurface=Color(0xFFE4E7EF),
+        surfaceVariant=Color(0xFF414752),onSurfaceVariant=Color(0xFFC2C8D3),outline=Color(0xFF8C939F),outlineVariant=Color(0xFF414752),
+        surfaceDim=Color(0xFF171A20),surfaceBright=Color(0xFF373B44),surfaceContainerLowest=Color(0xFF11141A),surfaceContainerLow=Color(0xFF1C2027),
+        surfaceContainer=Color(0xFF20242C),surfaceContainerHigh=Color(0xFF2A2E36),surfaceContainerHighest=Color(0xFF353941),surfaceTint=Color(0xFFA8C7FA),inversePrimary=Color(0xFF2864B4))
+        else lightColorScheme(
+            primary=Color(0xFF2864B4),onPrimary=Color.White,primaryContainer=Color(0xFFD5E3FF),onPrimaryContainer=Color(0xFF12345B),
+            secondary=Color(0xFF506580),onSecondary=Color.White,secondaryContainer=Color(0xFFDFEAFE),onSecondaryContainer=Color(0xFF243B59),
+            background=Color(0xFFFAF7EF),onBackground=Color(0xFF202124),surface=Color(0xFFFAF7EF),onSurface=Color(0xFF202124),
+            surfaceVariant=Color(0xFFE1E6EF),onSurfaceVariant=Color(0xFF444B57),outline=Color(0xFF747C89),outlineVariant=Color(0xFFC4CAD5),
+            surfaceDim=Color(0xFFDADDE4),surfaceBright=Color(0xFFFAF7EF),surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xFFF2F4F9),
+            surfaceContainer=Color(0xFFEDF0F6),surfaceContainerHigh=Color(0xFFE7EBF2),surfaceContainerHighest=Color(0xFFE1E6EF),surfaceTint=Color(0xFF2864B4),inversePrimary=Color(0xFFA8C7FA))
     MaterialTheme(colorScheme=scheme) {
         val page by model.page.collectAsStateWithLifecycle()
         val entries by model.entries.collectAsStateWithLifecycle()

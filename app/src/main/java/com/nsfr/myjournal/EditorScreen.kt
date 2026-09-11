@@ -10,10 +10,13 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -24,6 +27,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.*
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
@@ -31,6 +35,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -66,24 +71,29 @@ private class PageGeometry(val density: Float) {
     fun changed() { val next=measure(); if(next!=previous) { previous=next; revision++ } }
 }
 
-@Composable private fun AnchoredText(id: String,section: String,text: String,question: Boolean,editable: Boolean,geometry: PageGeometry,onText:(String)->Unit,onFocus:(String,Int)->Unit) {
+@Composable private fun AnchoredText(id: String,section: String,text: String,question: Boolean,editable: Boolean,geometry: PageGeometry,onText:(String)->Unit,onFocus:(String,Int)->Unit,showPlaceholder: Boolean=false) {
     var field by remember(id) { mutableStateOf(TextFieldValue(text)) }
     if(field.text!=text) field=field.copy(text=text,selection=androidx.compose.ui.text.TextRange(field.selection.end.coerceAtMost(text.length)))
     val node=remember(id) { GeometryNode(section,text) }
     node.text=text
     DisposableEffect(id) { geometry.nodes[id]=node; onDispose { geometry.nodes.remove(id); geometry.changed() } }
     val modifier=Modifier.fillMaxWidth().onGloballyPositioned { node.coordinates=it; geometry.changed() }
-    val style=TextStyle(color=MaterialTheme.colorScheme.onSurface,fontSize=if(question) 19.sp else 16.sp,lineHeight=if(question) 26.sp else 24.sp,fontWeight=if(question) FontWeight.SemiBold else FontWeight.Normal,fontFamily=FontFamily.SansSerif)
+    val style=TextStyle(color=MaterialTheme.colorScheme.onSurface,fontSize=if(question) 20.sp else 16.sp,lineHeight=if(question) 28.sp else 24.sp,fontWeight=if(question) FontWeight.SemiBold else FontWeight.Normal,fontFamily=if(question) FontFamily.Serif else FontFamily.SansSerif)
     if(question) Text(text,modifier,style=style,onTextLayout={ node.layout=it; geometry.changed() })
     else BasicTextField(value=field,onValueChange={ next -> field=next; onFocus(id,next.selection.end); if(next.text!=text) onText(next.text) },readOnly=!editable,
         modifier=modifier.heightIn(min=64.dp).testTag("answer:$id"),textStyle=style,cursorBrush=SolidColor(MaterialTheme.colorScheme.primary),
-        onTextLayout={ node.layout=it; geometry.changed() },decorationBox={ inner -> Box { if(text.isEmpty() && editable) Text("Можно начать с пары слов…",style=style.copy(color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.55f))); inner() } })
+        keyboardOptions=KeyboardOptions(capitalization=KeyboardCapitalization.Sentences),
+        onTextLayout={ node.layout=it; geometry.changed() },decorationBox={ inner -> Box { if(showPlaceholder && text.isEmpty() && editable) Text("Можно начать с пары слов…",style=style.copy(color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.55f))); inner() } })
 }
 
 @Composable private fun LocalPhoto(path: String,description: String,modifier: Modifier) {
     val bitmap by produceState<android.graphics.Bitmap?>(null,path) { value=withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) } }
     bitmap?.let { Image(it.asImageBitmap(),description,modifier,contentScale=androidx.compose.ui.layout.ContentScale.Fit) }
         ?: Box(modifier,contentAlignment=Alignment.Center) { Text("Загрузка фотографии…") }
+}
+
+@Composable internal fun EditorPageViewport(modifier: Modifier=Modifier,content: @Composable BoxScope.()->Unit) {
+    Box(modifier.fillMaxWidth().clipToBounds().testTag("editorViewport"),content=content)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,11 +115,8 @@ private class PageGeometry(val density: Float) {
     var zoom by remember { mutableFloatStateOf(1f) }; var panX by remember { mutableFloatStateOf(0f) }; var panY by remember { mutableFloatStateOf(0f) }
     var viewportWidth by remember { mutableIntStateOf(0) }; var viewportHeight by remember { mutableIntStateOf(0) }
     var pageHeight by remember { mutableIntStateOf(0) }
-    var hint by remember { mutableStateOf<String?>(null) }
-    val saving by model.saving.collectAsStateWithLifecycle()
     val library by model.library.collectAsStateWithLifecycle()
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if(uri!=null) model.addPhoto(uri,focusBlock,cursor) }
-    LaunchedEffect(hint) { if(hint!=null) { kotlinx.coroutines.delay(2200); hint=null } }
     fun matrix() = Matrix().apply { setScale(density*zoom,density*zoom); postTranslate(panX,panY-scroll.value) }
     fun textMode() {
         pen=false
@@ -125,16 +132,16 @@ private class PageGeometry(val density: Float) {
         }
     }
     Column(Modifier.fillMaxSize().imePadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().zIndex(1f).background(MaterialTheme.colorScheme.background).testTag("editorHeader").padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick={ model.closePage() }) { Text("Назад") }
             Column(Modifier.weight(1f).padding(horizontal=6.dp)) {
                 Text(dateLabel(page.entry.date),fontFamily=FontFamily.Serif,fontSize=19.sp)
-                Text(if(readOnly) "Запечатано · только просмотр" else if(saving) "Сохраняется…" else "Черновик · сохранён на устройстве",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if(readOnly) "Запечатано · только просмотр" else "Черновик",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if(!readOnly) TextButton(onClick={ focus.clearFocus(); keyboard?.hide(); save=true },enabled=page.hasContent()) { Text("Сохранить") }
         }
         HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.5f))
-        Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { viewportWidth=it.size.width; viewportHeight=it.size.height }) {
+        EditorPageViewport(Modifier.weight(1f).onGloballyPositioned { viewportWidth=it.size.width; viewportHeight=it.size.height }) {
             Column(Modifier.fillMaxWidth().verticalScroll(scroll,enabled=!pen).graphicsLayer { scaleX=zoom; scaleY=zoom; transformOrigin=TransformOrigin(0f,0f); translationX=panX; translationY=panY }
                 .onGloballyPositioned { geometry.root=it; pageHeight=it.size.height; geometry.changed() }.padding(24.dp)) {
                 page.sections.sortedBy { it.position }.forEach { section -> key(section.id) {
@@ -146,14 +153,16 @@ private class PageGeometry(val density: Float) {
                         TextButton(onClick={ model.removeQuestion(section.id) },enabled=page.sections.size>1 && page.sectionEmpty(section.id)) { Text("Убрать") }
                     }
                     Spacer(Modifier.height(12.dp))
-                    page.blocks.filter { it.sectionId==section.id }.sortedBy { it.position }.forEach { block -> key(block.id) {
+                    val sectionBlocks=page.blocks.filter { it.sectionId==section.id }.sortedBy { it.position }
+                    val firstTextId=sectionBlocks.firstOrNull { it.type=="TEXT" }?.id
+                    sectionBlocks.forEach { block -> key(block.id) {
                         if(block.type=="TEXT") AnchoredText(block.id,section.id,block.text,false,!readOnly && !pen,geometry,{ text ->
                             model.text(block.id,text,InkEngine.detachOverlapping(page.ink,block.id,block.text,text,geometry.measure()))
-                        },{ id,position -> focusBlock=id; cursor=position })
+                        },{ id,position -> focusBlock=id; cursor=position },showPlaceholder=block.id==firstTextId)
                         else page.media.find { it.id==block.mediaId }?.let { asset ->
                             val node=remember(block.id) { GeometryNode(section.id,"") }
                             DisposableEffect(block.id) { geometry.nodes[block.id]=node; onDispose { geometry.nodes.remove(block.id) } }
-                            LocalPhoto(File(context.filesDir,asset.thumbnail).absolutePath,"Фотография · ${block.widthPercent}%",Modifier.fillMaxWidth(block.widthPercent/100f).aspectRatio(asset.width.toFloat()/asset.height)
+                            LocalPhoto(File(context.filesDir,asset.path).absolutePath,"Фотография · ${block.widthPercent}%",Modifier.fillMaxWidth(block.widthPercent/100f).aspectRatio(asset.width.toFloat()/asset.height)
                                 .onGloballyPositioned { node.coordinates=it; geometry.changed() }.then(if(!pen) Modifier.clickable { if(readOnly) fullPhoto=asset else photoMenu=block } else Modifier))
                         }
                         Spacer(Modifier.height(16.dp))
@@ -175,7 +184,6 @@ private class PageGeometry(val density: Float) {
                 view.logicalColor=prefs.color; view.thickness=prefs.thickness; view.dark=dark
                 view.onFinished={ points -> val metrics=geometry.measure(); if(points.isNotEmpty() && metrics.isNotEmpty()) {
                     val stroke=InkEngine.capture(points,page,metrics,prefs.color,prefs.thickness); model.addInk(stroke)
-                    hint=when(stroke.type) { "UNDERLINE" -> "Подчёркивание связано с текстом"; "CIRCLE" -> "Обводка связана с текстом"; "STRIKE" -> "Зачёркивание связано с текстом"; else -> null }
                 } }
                 view.onTransform={ scale,dx,dy,cx,cy ->
                     val next=(zoom*scale).coerceIn(1f,3f); val ratio=next/zoom
@@ -184,7 +192,6 @@ private class PageGeometry(val density: Float) {
                     zoom=next
                 }
             })
-            hint?.let { Surface(Modifier.align(Alignment.BottomCenter).padding(12.dp),shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.inverseSurface) { Text(it,Modifier.padding(12.dp),color=MaterialTheme.colorScheme.inverseOnSurface,style=MaterialTheme.typography.bodySmall) } }
         }
         if(!readOnly) Surface(shadowElevation=3.dp,color=MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp)) {
@@ -193,16 +200,16 @@ private class PageGeometry(val density: Float) {
                         Row { listOf("Основной","Оранжевый","Синий").forEachIndexed { i,label ->
                             Box(Modifier.size(48.dp).padding(5.dp).then(if(prefs.color==i) Modifier.border(2.dp,MaterialTheme.colorScheme.primary,CircleShape) else Modifier).padding(5.dp).background(Color(inkColor(i,dark)),CircleShape).clickable { model.setPreferences(color=i) }.semantics { contentDescription="$label цвет" })
                         } }
-                        TextButton(onClick={ model.undo() },enabled=page.ink.any { it.active }) { Text("Отменить") }
-                        TextButton(onClick={ model.redo() },enabled=page.ink.any { !it.active }) { Text("Вернуть") }
+                        IconButton(onClick={ model.undo() },enabled=page.ink.any { it.active },modifier=Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_undo),"Отменить") }
+                        IconButton(onClick={ model.redo() },enabled=page.ink.any { !it.active },modifier=Modifier.size(48.dp)) { Icon(painterResource(R.drawable.ic_redo),"Вернуть") }
                     }
                     Row(verticalAlignment=Alignment.CenterVertically) { Text("${prefs.thickness.toInt()} dp",style=MaterialTheme.typography.labelSmall); Slider(value=prefs.thickness,onValueChange={ model.setPreferences(thickness=it) },valueRange=2f..8f,modifier=Modifier.weight(1f).semantics { contentDescription="Толщина ручки от 2 до 8" }) }
                 }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                     Row {
-                        FilterChip(selected=!pen,onClick={ textMode() },label={ Text("Текст") })
+                        FilterChip(selected=!pen,onClick={ textMode() },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp),label={ Icon(painterResource(R.drawable.ic_text),"Текст",Modifier.size(24.dp)) })
                         Spacer(Modifier.width(8.dp))
-                        FilterChip(selected=pen,onClick={ focus.clearFocus(); keyboard?.hide(); editQuestions=false; pen=true },label={ Text("Ручка") })
+                        FilterChip(selected=pen,onClick={ focus.clearFocus(); keyboard?.hide(); editQuestions=false; pen=true },modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp),label={ Icon(painterResource(R.drawable.ic_pen),"Ручка",Modifier.size(24.dp)) })
                     }
                     if(!pen) {
                         TextButton(onClick={ focus.clearFocus(); picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("Фото") }

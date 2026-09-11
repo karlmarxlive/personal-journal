@@ -53,8 +53,9 @@ class JournalExport(private val context: Context) {
         var y=24f
         val elements=mutableListOf<PdfElement>(); val geometry=mutableListOf<TextGeometry>()
         fun text(id: String, sectionId: String,value: String,question: Boolean) {
-            val paint=TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.BLACK; textSize=if(question) 19f else 16f; typeface=if(question) Typeface.create("sans-serif",Typeface.BOLD) else Typeface.create("sans-serif",Typeface.NORMAL) }
-            val layout=StaticLayout.Builder.obtain(value,0,value.length,paint,312).setIncludePad(false).setLineSpacing(5f,1f).setAlignment(Layout.Alignment.ALIGN_NORMAL).build()
+            val paint=TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.BLACK; textSize=if(question) 20f else 16f; typeface=if(question) Typeface.create(Typeface.create("serif",Typeface.NORMAL),600,false) else Typeface.create("sans-serif",Typeface.NORMAL) }
+            val lineSpacing=if(question) 28f-(paint.fontMetrics.descent-paint.fontMetrics.ascent) else 5f
+            val layout=StaticLayout.Builder.obtain(value,0,value.length,paint,312).setIncludePad(false).setLineSpacing(lineSpacing,1f).setAlignment(Layout.Alignment.ALIGN_NORMAL).build()
             val glyphs=value.indices.map { i -> val line=layout.getLineForOffset(i); val x=layout.getPrimaryHorizontal(i); val next=layout.getPrimaryHorizontal(i+1); Glyph(i,Bounds(24+minOf(x,next),y+layout.getLineTop(line),24+maxOf(x,next),y+layout.getLineBottom(line)),y+layout.getLineBaseline(line)) }
             geometry+=TextGeometry(id,sectionId,value,Bounds(24f,y,336f,y+layout.height),glyphs)
             elements+=PdfElement(y,layout=layout)

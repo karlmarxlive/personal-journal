@@ -12,15 +12,8 @@ foreach ($file in $xmlFiles) {
 $errors = @($lint.issues.issue | Where-Object { $_.severity -in 'Error','Fatal' })
 $warnings = @($lint.issues.issue | Where-Object { $_.severity -eq 'Warning' })
 if ($errors.Count) { throw "Lint: $($errors.Count) ошибок" }
-$deviceTotal = 0
-$deviceReports = Get-ChildItem -Path (Join-Path $projectRoot 'app\build\outputs\androidTest-results\connected') -Recurse -Filter 'TEST-*.xml' -ErrorAction SilentlyContinue
-foreach ($file in $deviceReports) {
-    [xml]$deviceXml = Get-Content -LiteralPath $file.FullName -Raw
-    $deviceSuite = $deviceXml.DocumentElement
-    $deviceTotal += [int]$deviceSuite.tests
-    if ([int]$deviceSuite.failures -ne 0 -or [int]$deviceSuite.errors -ne 0 -or [int]$deviceSuite.skipped -ne 0) { throw "Неуспешный тест на устройстве: $($file.Name)" }
-}
-$destination = Join-Path $projectRoot 'dist\MyJournal-1.0.0.apk'
+# This release is verified on the host only. Never reuse historical device XML.
+$destination = Join-Path $projectRoot 'dist\MyJournal-1.0.1.apk'
 Copy-Item -LiteralPath (Join-Path $projectRoot 'app\build\outputs\apk\release\app-release.apk') -Destination $destination -Force
 $verifyDir = Join-Path $projectRoot 'dist\verification'
 New-Item -ItemType Directory -Force -Path $verifyDir | Out-Null
@@ -31,7 +24,7 @@ $badging = & "$env:ANDROID_HOME\build-tools\36.0.0\aapt2.exe" dump badging $dest
 if ($LASTEXITCODE -ne 0) { throw 'Не удалось прочитать манифест APK' }
 $badging | Set-Content -LiteralPath (Join-Path $verifyDir 'manifest.txt') -Encoding utf8
 $manifest = $badging -join "`n"
-if ($manifest -notmatch "package: name='com.nsfr.myjournal' versionCode='1' versionName='1.0.0'") { throw 'Неверный package или версия APK' }
+if ($manifest -notmatch "package: name='com.nsfr.myjournal' versionCode='2' versionName='1\.0\.1'") { throw 'Неверный package или версия APK' }
 if ($manifest -match 'android.permission.(INTERNET|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO)') { throw 'Обнаружено ненужное разрешение' }
 $hash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash
 $sourceHash = (Get-FileHash -LiteralPath (Join-Path $projectRoot 'app\build\outputs\apk\release\app-release.apk') -Algorithm SHA256).Hash
@@ -41,15 +34,15 @@ $report = [ordered]@{
     bytes = (Get-Item -LiteralPath $destination).Length
     sha256 = $hash
     package = 'com.nsfr.myjournal'
-    versionName = '1.0.0'
-    versionCode = 1
+    versionName = '1.0.1'
+    versionCode = 2
     localTests = $total
     testFailures = 0
     lintErrors = 0
     lintWarnings = $warnings.Count
     signatureVerified = $true
     forbiddenPermissions = $false
-    deviceTests = $(if ($deviceTotal -gt 0) { "Passed: $deviceTotal" } else { 'Not run' })
+    deviceTests = 'Not run for 1.0.1 (host-only verification requested)'
     date = (Get-Date).ToString('o')
 }
 $report | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $verifyDir 'report.json') -Encoding utf8
