@@ -4,7 +4,6 @@
 **/build/
 local.properties
 local-signing/
-dist/*.apk
 dist/*.zip
 dist/verification/
 .idea/
