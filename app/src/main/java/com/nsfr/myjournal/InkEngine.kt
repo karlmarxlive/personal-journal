@@ -83,16 +83,15 @@ object InkEngine {
 
 class InkPainter {
     private val renderer by lazy { CanvasStrokeRenderer.create() }
-    private val cache=android.util.LruCache<String,List<Stroke>>(160)
+    private val cache=InkRenderCache<List<Stroke>>()
     fun draw(canvas: Canvas, strokes: List<InkStroke>, geometry: List<TextGeometry>, transform: Matrix, dark: Boolean=false,pdf: Boolean=false) {
-        strokes.filter { it.active }.forEach { s ->
-            val key="${s.id}:${s.type}:${s.start}:${s.end}:${s.serialized.contentHashCode()}:$dark:$pdf:${geometry.find { it.id==s.anchor }.hashCode()}"
-            val rendered=cache[key] ?: InkEngine.projected(s,geometry).filter { it.isNotEmpty() }.map { points ->
+        val prepared=cache.get(strokes,geometry,dark,pdf) { s ->
+            InkEngine.projected(s,geometry).filter { it.isNotEmpty() }.map { points ->
                 val batch=MutableStrokeInputBatch(); points.forEachIndexed { i,p -> batch.add(InkEngine.input(p.x,p.y,p.time.coerceAtLeast(i.toLong()))) }
                 Stroke(InkEngine.brush(s.color,s.thickness,dark,pdf),batch)
-            }.also { cache.put(key,it) }
-            rendered.forEach { stroke -> renderer.draw(canvas,stroke,transform) }
+            }
         }
+        prepared.forEach { rendered -> rendered.forEach { stroke -> renderer.draw(canvas,stroke,transform) } }
     }
 }
 

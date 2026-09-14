@@ -1,6 +1,5 @@
 package com.nsfr.myjournal
 
-import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -21,16 +20,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -42,54 +38,23 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.abs
 
-private data class GeometryNode(val section: String,var text: String,var coordinates: LayoutCoordinates?=null,var layout: TextLayoutResult?=null)
-private class PageGeometry(val density: Float) {
-    var root: LayoutCoordinates?=null
-    val nodes=mutableMapOf<String,GeometryNode>()
-    var revision by mutableIntStateOf(0)
-    private var previous=emptyList<TextGeometry>()
-    fun measure(): List<TextGeometry> {
-        val parent=root?.takeIf { it.isAttached } ?: return emptyList()
-        return nodes.mapNotNull { (id,node) ->
-            val coords=node.coordinates?.takeIf { it.isAttached } ?: return@mapNotNull null
-            val offset=parent.localPositionOf(coords,Offset.Zero)/density
-            val bounds=Bounds(offset.x,offset.y,offset.x+coords.size.width/density,offset.y+coords.size.height/density)
-            val layout=node.layout
-            val glyphs=if(layout==null) emptyList() else node.text.indices.map { index ->
-                val r=layout.getBoundingBox(index); val line=layout.getLineForOffset(index)
-                Glyph(index,Bounds(offset.x+r.left/density,offset.y+r.top/density,offset.x+r.right/density,offset.y+r.bottom/density),offset.y+layout.getLineBaseline(line)/density)
-            }
-            TextGeometry(id,node.section,node.text,bounds,glyphs)
-        }
-    }
-    fun changed() { val next=measure(); if(next!=previous) { previous=next; revision++ } }
-}
-
-@Composable private fun AnchoredText(id: String,section: String,text: String,question: Boolean,editable: Boolean,geometry: PageGeometry,onText:(String)->Unit,onFocus:(String,Int)->Unit,showPlaceholder: Boolean=false) {
+@Composable internal fun AnchoredText(id: String,section: String,text: String,question: Boolean,editable: Boolean,geometry: PageGeometry,onText:(String)->Unit,onFocus:(String,Int)->Unit,showPlaceholder: Boolean=false) {
     var field by remember(id) { mutableStateOf(TextFieldValue(text)) }
     if(field.text!=text) field=field.copy(text=text,selection=androidx.compose.ui.text.TextRange(field.selection.end.coerceAtMost(text.length)))
     val node=remember(id) { GeometryNode(section,text) }
     node.text=text
-    DisposableEffect(id) { geometry.nodes[id]=node; onDispose { geometry.nodes.remove(id); geometry.changed() } }
-    val modifier=Modifier.fillMaxWidth().onGloballyPositioned { node.coordinates=it; geometry.changed() }
+    DisposableEffect(id) { geometry.nodes[id]=node; onDispose { geometry.remove(id) } }
+    val modifier=Modifier.fillMaxWidth().onGloballyPositioned { node.coordinates=it; geometry.changed(node) }
     val style=TextStyle(color=MaterialTheme.colorScheme.onSurface,fontSize=if(question) 20.sp else 16.sp,lineHeight=if(question) 28.sp else 24.sp,fontWeight=if(question) FontWeight.SemiBold else FontWeight.Normal,fontFamily=if(question) FontFamily.Serif else FontFamily.SansSerif)
-    if(question) Text(text,modifier,style=style,onTextLayout={ node.layout=it; geometry.changed() })
+    if(question) Text(text,modifier,style=style,onTextLayout={ node.layout=it; geometry.changed(node) })
     else BasicTextField(value=field,onValueChange={ next -> field=next; onFocus(id,next.selection.end); if(next.text!=text) onText(next.text) },readOnly=!editable,
         modifier=modifier.heightIn(min=64.dp).testTag("answer:$id"),textStyle=style,cursorBrush=SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions=KeyboardOptions(capitalization=KeyboardCapitalization.Sentences),
-        onTextLayout={ node.layout=it; geometry.changed() },decorationBox={ inner -> Box { if(showPlaceholder && text.isEmpty() && editable) Text("Можно начать с пары слов…",style=style.copy(color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.55f))); inner() } })
-}
-
-@Composable private fun LocalPhoto(path: String,description: String,modifier: Modifier) {
-    val bitmap by produceState<android.graphics.Bitmap?>(null,path) { value=withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) } }
-    bitmap?.let { Image(it.asImageBitmap(),description,modifier,contentScale=androidx.compose.ui.layout.ContentScale.Fit) }
-        ?: Box(modifier,contentAlignment=Alignment.Center) { Text("Загрузка фотографии…") }
+        onTextLayout={ node.layout=it; geometry.changed(node) },decorationBox={ inner -> Box { if(showPlaceholder && text.isEmpty() && editable) Text("Можно начать с пары слов…",style=style.copy(color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.55f))); inner() } })
 }
 
 @Composable internal fun EditorPageViewport(modifier: Modifier=Modifier,content: @Composable BoxScope.()->Unit) {
@@ -110,7 +75,7 @@ private class PageGeometry(val density: Float) {
     val context=LocalContext.current; val density=LocalDensity.current.density
     val keyboard=LocalSoftwareKeyboardController.current; val focus=LocalFocusManager.current
     val scroll=rememberScrollState(); val scope=rememberCoroutineScope()
-    val geometry=remember(page.entry.id) { PageGeometry(density) }
+    val geometry=remember(page.entry.id,density) { PageGeometry(density) }
     val painter=remember { InkPainter() }
     var zoom by remember { mutableFloatStateOf(1f) }; var panX by remember { mutableFloatStateOf(0f) }; var panY by remember { mutableFloatStateOf(0f) }
     var viewportWidth by remember { mutableIntStateOf(0) }; var viewportHeight by remember { mutableIntStateOf(0) }
@@ -161,9 +126,15 @@ private class PageGeometry(val density: Float) {
                         },{ id,position -> focusBlock=id; cursor=position },showPlaceholder=block.id==firstTextId)
                         else page.media.find { it.id==block.mediaId }?.let { asset ->
                             val node=remember(block.id) { GeometryNode(section.id,"") }
-                            DisposableEffect(block.id) { geometry.nodes[block.id]=node; onDispose { geometry.nodes.remove(block.id) } }
+                            DisposableEffect(block.id) { geometry.nodes[block.id]=node; onDispose { geometry.remove(block.id) } }
                             LocalPhoto(File(context.filesDir,asset.path).absolutePath,"Фотография · ${block.widthPercent}%",Modifier.fillMaxWidth(block.widthPercent/100f).aspectRatio(asset.width.toFloat()/asset.height)
-                                .onGloballyPositioned { node.coordinates=it; geometry.changed() }.then(if(!pen) Modifier.clickable { if(readOnly) fullPhoto=asset else photoMenu=block } else Modifier))
+                                .onGloballyPositioned { node.coordinates=it; geometry.changed(node) }.then(if(!pen) Modifier.clickable { if(readOnly) fullPhoto=asset else photoMenu=block } else Modifier),
+                                nearViewport={
+                                    geometry.revision
+                                    node.cached?.bounds?.let { bounds -> photoNearViewport(
+                                        bounds.top*density*zoom+panY-scroll.value,
+                                        bounds.bottom*density*zoom+panY-scroll.value,viewportHeight) } ?: false
+                                },zoom={ zoom })
                         }
                         Spacer(Modifier.height(16.dp))
                     } }

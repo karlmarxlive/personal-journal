@@ -13,7 +13,11 @@ import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 
 val Application.preferences by preferencesDataStore("settings")
-class JournalApp : Application() { val repository by lazy { JournalRepository(this) } }
+class JournalApp : Application() {
+    val repository by lazy { JournalRepository(this) }
+    override fun onTrimMemory(level: Int) { super.onTrimMemory(level); SharedPhotos.loader.clear() }
+    override fun onLowMemory() { super.onLowMemory(); SharedPhotos.loader.clear() }
+}
 data class Preferences(val theme: String = "SYSTEM",val color: Int = 0,val thickness: Float = 3f)
 
 class JournalModel(application: Application) : AndroidViewModel(application) {

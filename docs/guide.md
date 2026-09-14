@@ -57,7 +57,7 @@ $env:GRADLE_USER_HOME = "$PWD\.gradle-user-home"
 
 Реальная генерация PDF и нативный Ink дополнительно проверяются в `InkDeviceTest` на Android. Robolectric на этом Windows-хосте не создаёт нативный handle PdfDocument: локальный ZIP-тест проверяет упаковку PDF-файла, а не подменяет проверку настоящего рендеринга. **2026-09-05–06 проверки выполнены на A059 с Android 16:** инструментальные тесты, системный Photo Picker, восстановление release-черновика после остановки процесса и экспорт release с R8. Подробные результаты и пределы проверки — в [DEVICE-CHECKLIST.md](../DEVICE-CHECKLIST.md).
 
-Отчёты: `app/build/test-results/testDebugUnitTest/TEST-*.xml`, `app/build/reports/lint-results-debug.xml`. Скрипт [scripts/verify-artifact.ps1](../scripts/verify-artifact.ps1) проверяет локальные XML, копирует release APK в `dist`, проверяет подпись, package, версии, разрешения и SHA-256. Старые отчёты из `app/build/outputs/androidTest-results/connected/` не учитываются: проверки устройства для 1.0.1 отмечаются как не выполненные.
+Отчёты: `app/build/test-results/testDebugUnitTest/TEST-*.xml`, `app/build/reports/lint-results-debug.xml`. Скрипт [scripts/verify-artifact.ps1](../scripts/verify-artifact.ps1) проверяет локальные XML, копирует release APK в `dist`, проверяет подпись, package, версии, разрешения и SHA-256. Старые отчёты из `app/build/outputs/androidTest-results/connected/` не учитываются: проверки устройства для 1.0.2 отмечаются как не выполненные.
 
 ## Официальные источники
 
@@ -67,3 +67,12 @@ $env:GRADLE_USER_HOME = "$PWD\.gradle-user-home"
 - [Хранение Ink](https://developer.android.com/develop/ui/views/touch-and-input/stylus-input/ink-api-persistent-storage)
 - [Photo Picker](https://developer.android.com/training/data-storage/shared/photo-picker)
 - [PdfDocument](https://developer.android.com/reference/android/graphics/pdf/PdfDocument)
+
+
+## Оптимизация прокрутки 1.0.2
+
+Фотографии загружаются в фоне по размеру отображения, только в пределах экрана и одного экрана запаса с каждой стороны. Размер блока сохраняется во время загрузки. Общий кеш ограничен меньшим из 32 МиБ и 1/8 максимальной памяти приложения; одновременно декодируются не более двух изображений. При нехватке памяти кеш очищается. Сохранённые фотографии и экспорт не перекодируются.
+
+Геометрия текста кешируется в координатах страницы. Прокрутка переиспользует границы символов и подготовленные рукописные штрихи; изменение текста, расположения блоков, цвета или толщины обновляет соответствующие результаты. Общая непрерывная страница сохранена для совместимости с привязками пометок.
+
+Проверки 1.0.2 выполняются только на компьютере. Они проверяют повторную прокрутку длинного текста, 30 фото в черновике и запечатанной записи, ограничения кеша, отмену загрузок и обновление геометрии. Фактический FPS, плавность на телефоне и нативная отрисовка Ink для этой версии не измерены.

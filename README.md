@@ -18,6 +18,6 @@
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
-Готовые APK: [1.0.1](dist/MyJournal-1.0.1.apk) и [1.0.0](dist/MyJournal-1.0.0.apk).
+Готовые APK: [1.0.2](dist/MyJournal-1.0.2.apk), [1.0.1](dist/MyJournal-1.0.1.apk) и [1.0.0](dist/MyJournal-1.0.0.apk).
 
 Подробнее: [руководство и release-сборка](docs/guide.md). Ключи подписи, локальные настройки и временные файлы сборки не хранятся в репозитории.
